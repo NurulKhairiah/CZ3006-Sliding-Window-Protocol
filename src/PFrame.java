@@ -15,10 +15,11 @@ public class PFrame {
 		Class constants
 **************************************************************/
    
+  
    public static final int DATA = 0;
    public static final int ACK  = 1;
    public static final int NAK  = 2;
-   public static final String[] KIND = {"DATA", 
+   public static final String[] KIND = {"DATA", //Let receiver identify it its a data, acknowledgement or negative acknowledgement packet
 						    "ACK", 
 						    "NAK" };  
 
