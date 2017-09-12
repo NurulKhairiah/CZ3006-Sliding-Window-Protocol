@@ -128,13 +128,13 @@ public class SWP {
 
 	public void protocol6() {
 		
-		/*Declaring variables for Protocol 6**/
+		/**Declaring variables and array for Protocol 6**/
 		int ack_expected;          //Frame number of expected acknowledgement - Lower edge of sender's window. -
 		int next_frame_to_send;    //Next outgoing frame to be sent to the receiver - Upper edge of sender's window + 1. -  
 		int  frame_expected;       //Frame expected on the receiver's window - Lower edge of receiver's window - 
 		int too_far;               //Defines the position where the receiver can receive no more frames. Perhaps over the limit? - Upper edge of receiver's window + 1
 		int i;                     //Defines the loop index into buffer pool
-		PFrame r;                  //Scratch variable
+		PFrame r = new PFrame();                  //Scratch variable
 		 		
 		init();
 
@@ -142,9 +142,9 @@ public class SWP {
 		
 		enable_network_layer(NR_BUFS); //Initialize the network layer
 		
-		/*Initializing variables for Protocol 6**/
-		ack_expected = 0;          //next acknowledgement expected on the inbound stream
-		next_frame_to_send = 0;    //number of next outgoing frame
+		/**Initializing variables for Protocol 6**/
+		ack_expected = 0;          //Next acknowledgement expected on the inbound stream
+		next_frame_to_send = 0;    //Number of next outgoing frame
 		frame_expected = 0; 
 		too_far = NR_BUFS;
 		
@@ -154,23 +154,104 @@ public class SWP {
 		}
 		
 		while (true) {
-			wait_for_event(event);
+			wait_for_event(event); //Five different possibilities
+			
 			switch (event.type) {
-			case (PEvent.NETWORK_LAYER_READY):
+			
+			case (PEvent.NETWORK_LAYER_READY): //accept, save and transmit a new frame
+				
+				from_network_layer(out_buf[next_frame_to_send%NR_BUFS]); //Fetch a new packet
+			    send_frame(PFrame.DATA, next_frame_to_send, frame_expected, out_buf); //Transmit the frame
+			    inc (next_frame_to_send); //advance upper window edge
+			    
 				break;
-			case (PEvent.FRAME_ARRIVAL):
+				
+			case (PEvent.FRAME_ARRIVAL): //Arrival of data or control frame
+				from_physical_layer(r); //Fetch incoming frame from the physical layer
+			
+			if(r.kind == PFrame.DATA){
+				//Arrival of an undamaged frame
+				
+				//Checks that the frame that arrived is not the expected one and that it doesn't have negative acknowledgement
+				//Not sure what this does - if the frame is not expected and tha tthere are no negative acknowledgements is 
+				//why does it send the NAK and frame_expected to the outgoing buffer???
+				if ((r.seq != frame_expected) && no_nak)
+					send_frame (PFrame.NAK, 0, frame_expected, out_buf);
+				
+				else
+					start_ack_timer();
+				
+				
+				//Should be the success case
+				//Checks that the frame received is within the expected frames at the receiver's window 
+				//Checks that the frame has not been received previously, else the frame would be discarded (not sure?)			
+	            if (between(frame_expected, r.seq, too_far) && arrived[r.seq % NR_BUFS] == false) {
+	            	
+	            	//The frames may be accepted in any particular oder
+	            	arrived[r.seq % NR_BUFS] = true; //mark buffer as full
+	            	in_buf[r.seq % NR_BUFS] = r.info; //insert data into the buffer
+	            	
+	            	while (arrived[frame_expected % NR_BUFS]){
+	            		//Pass frames and advance window
+	            		to_network_layer(in_buf[frame_expected % NR_BUFS]);
+	            		no_nak = true;
+	            		arrived[frame_expected % NR_BUFS] = false;
+	            		inc(frame_expected); //Advance lower edge of receiver's window
+	            		inc(too_far); //Advance upper edge of receiver's window
+	            		start_ack_timer(); //To see if a separate acknowledgement is needed - Not sure
+	            	}
+	            	
+	            }
+				
+			}
+			
+			//
+			if((r.kind==PFrame.NAK) && between(ack_expected,(r.ack+1)%(MAX_SEQ+1),next_frame_to_send))
+				send_frame(PFrame.DATA, (r.ack+1) % (MAX_SEQ + 1), frame_expected, out_buf);
+			
+			//
+			while (between(ack_expected, r.ack, next_frame_to_send)) {
+				stop_timer(ack_expected % NR_BUFS); /* frame arrived intact */
+				inc(ack_expected); /* advance the lower edge of sender’s window */
+				
+			}
 				break;
+				
 			case (PEvent.CKSUM_ERR):
+				//If there's a checksum error and if there's no negative acknowledgement that is sent for the damaged or lost frame
+				if (no_nak)
+					//Send negative acknowledgement
+					send_frame(PFrame.NAK, 0, frame_expected, out_buf); /* damaged frame */
+			
 				break;
+				
 			case (PEvent.TIMEOUT):
+				//If and when the timer times out, the frame will be retransmitted to the receiver 
+				send_frame(PFrame.DATA, oldest_frame, frame_expected, out_buf); /* we timed out */
 				break;
+				
 			case (PEvent.ACK_TIMEOUT):
+				//When the acknowledgement timer times out, a separate acknowledgement frame will be sent
+				//Rather than waiting for another frame to piggyback on it will be faster
+				send_frame(PFrame.ACK,0,frame_expected, out_buf); /* ack timer expired; send ack */
 				break;
+				
+				
 			default:
 				System.out.println("SWP: undefined event type = " + event.type);
 				System.out.flush();
 			}
 		}
+	}
+	
+
+
+	private int inc(int frame_number) {
+		// TODO Auto-generated method stub
+		//Increments (cynically) the frame number passed to it and returns it
+		frame_number = ((frame_number+1)%(MAX_SEQ+1));
+		
+		return frame_number;
 	}
 
 	/*
@@ -194,6 +275,8 @@ public class SWP {
 	private void stop_ack_timer() {
 
 	}
+	
+	
 
 }// End of class
 
