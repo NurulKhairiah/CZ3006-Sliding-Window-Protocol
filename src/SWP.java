@@ -135,8 +135,7 @@ public class SWP {
 		PFrame r = new PFrame(); //Declare scratch variable for incoming frame
 		Packet in_buf[] = new Packet[NR_BUFS]; //Added buffer for inbound transmission
 
-		//Inbound bit map - Keep track of frames arrived
-		boolean arrived[] = new boolean[NR_BUFS]; 
+		//Inbound bit map - Keep track of frames arrived		boolean arrived[] = new boolean[NR_BUFS]; 
 		
 		enable_network_layer(NR_BUFS); //Initializing network layer to allow the layer to send NR_BUFS frames and cause a network_layer_ready event
 
