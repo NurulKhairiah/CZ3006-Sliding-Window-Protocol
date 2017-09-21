@@ -19,9 +19,9 @@ public class PFrame {
    public static final int DATA = 0;
    public static final int ACK  = 1;
    public static final int NAK  = 2;
-   public static final String[] KIND = {"DATA", //Let receiver identify it its a data, acknowledgement or negative acknowledgement packet
-						    "ACK", 
-						    "NAK" };  
+   
+   //Let receiver identify if its a data, acknowledgement or negative acknowledgement frame
+   public static final String[] KIND = {"DATA", "ACK", "NAK" };  
 
 /**************************************************************
            Instance variables (all public for easy reference)
